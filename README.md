@@ -43,4 +43,6 @@ function wpucommentmetasexample_wpucommentmetas_fields($fields) {
 * [ ] Hook for visibility in front.
 * [ ] Public or private field.
 * [ ] Comment for a specific post type.
+* [ ] Mobile view in admin.
+* [ ] Required fields.
 
