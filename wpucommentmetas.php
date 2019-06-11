@@ -4,7 +4,7 @@
 Plugin Name: WPU Comment Metas
 Plugin URI: https://github.com/WordPressUtilities/wpucommentmetas
 Description: Simple admin for comments metas
-Version: 0.1.0
+Version: 0.2.0
 Author: Darklg
 Author URI: http://darklg.me/
 License: MIT License
@@ -22,6 +22,7 @@ class WPUCommentMetas {
     public function plugins_loaded() {
         $this->set_fields();
         $this->display_fields_front();
+        $this->display_fields_admin();
         $this->save_fields_form();
     }
 
@@ -41,6 +42,15 @@ class WPUCommentMetas {
             if (!isset($field['required'])) {
                 $this->fields[$id]['required'] = false;
             }
+            if (!isset($field['display_hooks'])) {
+                $this->fields[$id]['display_hooks'] = array(
+                    'comment_form_logged_in_after',
+                    'comment_form_after_fields'
+                );
+            }
+            if (!is_array($field['display_hooks'])) {
+                $this->fields[$id]['display_hooks'] = array($this->fields[$id]['display_hooks']);
+            }
         }
     }
 
@@ -49,18 +59,42 @@ class WPUCommentMetas {
     ---------------------------------------------------------- */
 
     public function display_fields_front() {
-        add_filter('comment_form_default_fields', array(&$this, 'load_fields_front'), 10, 1);
+        add_action('comment_form_top', array(&$this, 'load_fields_front'));
+        add_action('comment_form_before_fields', array(&$this, 'load_fields_front'));
+        add_action('comment_form_logged_in_after', array(&$this, 'load_fields_front'));
+        add_action('comment_form_after_fields', array(&$this, 'load_fields_front'));
     }
 
-    public function load_fields_front($fields) {
+    public function load_fields_front($fields = array()) {
+        $current_filter = current_filter();
         foreach ($this->fields as $id => $field) {
-            $fields[$id] = '<p class="comment-form-' . $id . '">' .
+            if (!in_array($current_filter, $field['display_hooks'])) {
+                continue;
+            }
+            echo '<p class="comment-form-' . $id . '">' .
                 '<label for="' . $id . '">' . $field['label'] . ($field['required'] ? ' <span class="required">*</span>' : '') . '</label> ' .
                 '<input id="' . $id . '" name="wpucommentmetas__' . $id . '" type="text" value="" size="30" maxlength="245"' . ($field['required'] ? " required='required'" : '') . ' />' .
                 '</p>';
         }
+    }
 
-        return $fields;
+    /* ----------------------------------------------------------
+      Display in admin
+    ---------------------------------------------------------- */
+
+    public function display_fields_admin() {
+        if (is_admin()) {
+            add_filter('comment_text', array($this, 'comment_text'), 10, 3);
+        }
+    }
+
+    public function comment_text($comment_text, $comment, $args = array()) {
+        $extra_comment_text = '';
+        foreach ($this->fields as $id => $field) {
+            $meta_value = get_comment_meta($comment->comment_ID, $id, 1);
+            $extra_comment_text .= '<strong>' . $field['label'] . ' : </strong> ' . $meta_value . "\n";
+        }
+        return $comment_text . '<hr />' . wpautop(trim($extra_comment_text));
     }
 
     /* ----------------------------------------------------------
@@ -68,10 +102,10 @@ class WPUCommentMetas {
     ---------------------------------------------------------- */
 
     public function save_fields_form() {
-        add_action('comment_post', array(&$this, 'save_comment_fields'), 10, 1);
+        add_action('comment_post', array(&$this, 'save_comment_fields'), 10, 3);
     }
 
-    public function save_comment_fields($comment_id) {
+    public function save_comment_fields($comment_id, $comment_approved, $commentdata) {
         foreach ($this->fields as $id => $field) {
             if (!isset($_POST['wpucommentmetas__' . $id])) {
                 continue;
