@@ -37,12 +37,12 @@ function wpucommentmetasexample_wpucommentmetas_fields($fields) {
 
 ## Roadmap
 
-* [ ] Visibility in admin for each field ( yes / no / list ? ).
+* [ ] Visibility in admin for each field ( list OR meta box ).
 * [ ] Hook for visibility in admin.
 * [ ] Visibility in front for each field.
 * [ ] Hook for visibility in front.
 * [ ] Public or private field.
 * [ ] Comment for a specific post type.
 * [ ] Mobile view in admin.
-* [ ] Required fields.
+* [ ] Required fields (check in backend).
 

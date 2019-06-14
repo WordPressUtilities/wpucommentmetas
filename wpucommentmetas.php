@@ -4,7 +4,7 @@
 Plugin Name: WPU Comment Metas
 Plugin URI: https://github.com/WordPressUtilities/wpucommentmetas
 Description: Simple admin for comments metas
-Version: 0.2.0
+Version: 0.2.1
 Author: Darklg
 Author URI: http://darklg.me/
 License: MIT License
@@ -42,13 +42,16 @@ class WPUCommentMetas {
             if (!isset($field['required'])) {
                 $this->fields[$id]['required'] = false;
             }
+            if (!isset($field['admin_visible'])) {
+                $this->fields[$id]['admin_visible'] = true;
+            }
             if (!isset($field['display_hooks'])) {
                 $this->fields[$id]['display_hooks'] = array(
                     'comment_form_logged_in_after',
                     'comment_form_after_fields'
                 );
             }
-            if (!is_array($field['display_hooks'])) {
+            if (!is_array($this->fields[$id]['display_hooks'])) {
                 $this->fields[$id]['display_hooks'] = array($this->fields[$id]['display_hooks']);
             }
         }
@@ -91,6 +94,9 @@ class WPUCommentMetas {
     public function comment_text($comment_text, $comment, $args = array()) {
         $extra_comment_text = '';
         foreach ($this->fields as $id => $field) {
+            if(!$field['admin_visible']){
+                continue;
+            }
             $meta_value = get_comment_meta($comment->comment_ID, $id, 1);
             $extra_comment_text .= '<strong>' . $field['label'] . ' : </strong> ' . $meta_value . "\n";
         }
