@@ -4,7 +4,7 @@
 Plugin Name: WPU Comment Metas
 Plugin URI: https://github.com/WordPressUtilities/wpucommentmetas
 Description: Simple admin for comments metas
-Version: 0.2.1
+Version: 0.2.2
 Author: Darklg
 Author URI: http://darklg.me/
 License: MIT License
@@ -44,6 +44,9 @@ class WPUCommentMetas {
             }
             if (!isset($field['admin_visible'])) {
                 $this->fields[$id]['admin_visible'] = true;
+            }
+            if (!isset($field['admin_list_visible'])) {
+                $this->fields[$id]['admin_list_visible'] = false;
             }
             if (!isset($field['display_hooks'])) {
                 $this->fields[$id]['display_hooks'] = array(
@@ -92,15 +95,27 @@ class WPUCommentMetas {
     }
 
     public function comment_text($comment_text, $comment, $args = array()) {
+        $screen = get_current_screen();
+        $is_edit_comment = false;
+        if (!is_null($screen) && !is_wp_error($screen) && is_object($screen)) {
+            $is_edit_comment = $screen->base == 'edit-comments';
+        }
         $extra_comment_text = '';
         foreach ($this->fields as $id => $field) {
-            if(!$field['admin_visible']){
+            if (!$field['admin_visible']) {
+                continue;
+            }
+            if (!$field['admin_list_visible'] && $is_edit_comment) {
                 continue;
             }
             $meta_value = get_comment_meta($comment->comment_ID, $id, 1);
             $extra_comment_text .= '<strong>' . $field['label'] . ' : </strong> ' . $meta_value . "\n";
         }
-        return $comment_text . '<hr />' . wpautop(trim($extra_comment_text));
+        $extra_comment_text = trim($extra_comment_text);
+        if (!empty($extra_comment_text)) {
+            $comment_text .= '<hr />' . wpautop($extra_comment_text);
+        }
+        return $comment_text;
     }
 
     /* ----------------------------------------------------------
