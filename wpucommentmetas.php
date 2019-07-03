@@ -4,7 +4,7 @@
 Plugin Name: WPU Comment Metas
 Plugin URI: https://github.com/WordPressUtilities/wpucommentmetas
 Description: Simple admin for comments metas
-Version: 0.2.2
+Version: 0.3.0
 Author: Darklg
 Author URI: http://darklg.me/
 License: MIT License
@@ -20,6 +20,7 @@ class WPUCommentMetas {
     }
 
     public function plugins_loaded() {
+        load_plugin_textdomain('wpucommentmetas', false, dirname(plugin_basename(__FILE__)) . '/lang/');
         $this->set_fields();
         $this->display_fields_front();
         $this->display_fields_admin();
@@ -123,7 +124,16 @@ class WPUCommentMetas {
     ---------------------------------------------------------- */
 
     public function save_fields_form() {
+        add_action('pre_comment_on_post', array(&$this, 'pre_comment_on_post'), 10, 1);
         add_action('comment_post', array(&$this, 'save_comment_fields'), 10, 3);
+    }
+
+    public function pre_comment_on_post($comment_post_ID) {
+        foreach ($this->fields as $id => $field) {
+            if (!isset($_POST['wpucommentmetas__' . $id]) || !$_POST['wpucommentmetas__' . $id]) {
+                wp_die(sprintf(__('The field "%s" is missing.', 'wpucommentmetas'), $field['label']));
+            }
+        }
     }
 
     public function save_comment_fields($comment_id, $comment_approved, $commentdata) {
