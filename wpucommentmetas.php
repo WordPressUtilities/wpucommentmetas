@@ -4,7 +4,7 @@
 Plugin Name: WPU Comment Metas
 Plugin URI: https://github.com/WordPressUtilities/wpucommentmetas
 Description: Simple admin for comments metas
-Version: 0.3.0
+Version: 0.4.0
 Author: Darklg
 Author URI: http://darklg.me/
 License: MIT License
@@ -40,6 +40,12 @@ class WPUCommentMetas {
             if (!isset($field['label'])) {
                 $this->fields[$id]['label'] = ucfirst($id);
             }
+            if (!isset($field['type'])) {
+                $this->fields[$id]['type'] = 'text';
+            }
+            if (!isset($field['help'])) {
+                $this->fields[$id]['help'] = '';
+            }
             if (!isset($field['required'])) {
                 $this->fields[$id]['required'] = false;
             }
@@ -70,6 +76,12 @@ class WPUCommentMetas {
         add_action('comment_form_before_fields', array(&$this, 'load_fields_front'));
         add_action('comment_form_logged_in_after', array(&$this, 'load_fields_front'));
         add_action('comment_form_after_fields', array(&$this, 'load_fields_front'));
+        add_filter('comment_form_submit_field', function ($field, $args) {
+            ob_start();
+            $this->load_fields_front();
+            $out = ob_get_clean();
+            return $out . $field;
+        }, 10, 2);
     }
 
     public function load_fields_front($fields = array()) {
@@ -78,11 +90,41 @@ class WPUCommentMetas {
             if (!in_array($current_filter, $field['display_hooks'])) {
                 continue;
             }
-            echo '<p class="comment-form-' . $id . '">' .
-                '<label for="' . $id . '">' . $field['label'] . ($field['required'] ? ' <span class="required">*</span>' : '') . '</label> ' .
-                '<input id="' . $id . '" name="wpucommentmetas__' . $id . '" type="text" value="" size="30" maxlength="245"' . ($field['required'] ? " required='required'" : '') . ' />' .
-                '</p>';
+            echo $this->load_field_html($id, $field);
+
         }
+    }
+
+    function load_field_html($id, $field) {
+        $html = '';
+
+        /* Label */
+        $label_for = 'for="' . $id . '"';
+        $label_text = $field['label'];
+        if ($field['required']) {
+            $label_text .= ' <span class="required">*</span>';
+        }
+
+        /* Input */
+        $input_id_name = ' name="wpucommentmetas__' . $id . '" id="' . $id . '" ';
+        if ($field['required']) {
+            $input_id_name .= '  required="required"';
+        }
+
+        switch ($field['type']) {
+        case 'checkbox':
+            $html .= '<input ' . $input_id_name . ' type="checkbox" value="1" />';
+            $html .= '<label ' . $label_for . '>' . $label_text . '</label> ';
+            break;
+        default:
+            $html .= '<label ' . $label_for . '>' . $label_text . '</label> ';
+            $html .= '<input ' . $input_id_name . ' type="text" value="" size="30" maxlength="245" />';
+        }
+        if ($field['help']) {
+            $html .= '<span class="comment-field-help">' . $field['help'] . '</span>';
+        }
+
+        return '<p class="comment-form-' . $id . '">' . $html . '</p>';
     }
 
     /* ----------------------------------------------------------
@@ -130,6 +172,9 @@ class WPUCommentMetas {
 
     public function pre_comment_on_post($comment_post_ID) {
         foreach ($this->fields as $id => $field) {
+            if ($field['type'] == 'checkbox') {
+                continue;
+            }
             if (!isset($_POST['wpucommentmetas__' . $id]) || !$_POST['wpucommentmetas__' . $id]) {
                 wp_die(sprintf(__('The field "%s" is missing.', 'wpucommentmetas'), $field['label']));
             }
