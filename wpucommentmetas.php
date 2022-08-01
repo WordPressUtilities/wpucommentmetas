@@ -4,11 +4,11 @@
 Plugin Name: WPU Comment Metas
 Plugin URI: https://github.com/WordPressUtilities/wpucommentmetas
 Description: Simple admin for comments metas
-Version: 0.4.0
+Version: 0.5.0
 Author: Darklg
-Author URI: http://darklg.me/
+Author URI: https://darklg.me/
 License: MIT License
-License URI: http://opensource.org/licenses/MIT
+License URI: https://opensource.org/licenses/MIT
 */
 
 defined('ABSPATH') or die(':(');
@@ -17,6 +17,8 @@ class WPUCommentMetas {
     private $fields = array();
     public function __construct() {
         add_filter('plugins_loaded', array(&$this, 'plugins_loaded'));
+        add_filter('manage_edit-comments_columns', array(&$this, 'add_comments_columns'));
+        add_action('manage_comments_custom_column', array(&$this, 'add_comment_columns_content'), 10, 2);
     }
 
     public function plugins_loaded() {
@@ -51,6 +53,9 @@ class WPUCommentMetas {
             }
             if (!isset($field['admin_visible'])) {
                 $this->fields[$id]['admin_visible'] = true;
+            }
+            if (!isset($field['admin_column'])) {
+                $this->fields[$id]['admin_column'] = false;
             }
             if (!isset($field['admin_list_visible'])) {
                 $this->fields[$id]['admin_list_visible'] = false;
@@ -162,6 +167,35 @@ class WPUCommentMetas {
     }
 
     /* ----------------------------------------------------------
+      Admin
+    ---------------------------------------------------------- */
+
+    function add_comments_columns($columns) {
+        $new_columns = array();
+        foreach ($this->fields as $id => $field) {
+            if (!$field['admin_column']) {
+                continue;
+            }
+            $new_columns['wpu__' . $id] = $field['label'];
+        }
+        $columns = array_slice($columns, 0, 3, true) + $new_columns + array_slice($columns, 3, NULL, true);
+        return $columns;
+    }
+
+    function add_comment_columns_content($column, $comment_ID) {
+        global $comment;
+        foreach ($this->fields as $id => $field) {
+            if ($column != 'wpu__' . $id) {
+                continue;
+            }
+            if (!$field['admin_column']) {
+                continue;
+            }
+            echo get_comment_meta($comment_ID, $id, 1);
+        }
+    }
+
+    /* ----------------------------------------------------------
       Save values
     ---------------------------------------------------------- */
 
@@ -173,6 +207,9 @@ class WPUCommentMetas {
     public function pre_comment_on_post($comment_post_ID) {
         foreach ($this->fields as $id => $field) {
             if ($field['type'] == 'checkbox') {
+                continue;
+            }
+            if (!isset($field['display_hooks']) || empty($field['display_hooks'])) {
                 continue;
             }
             if (!isset($_POST['wpucommentmetas__' . $id]) || !$_POST['wpucommentmetas__' . $id]) {
