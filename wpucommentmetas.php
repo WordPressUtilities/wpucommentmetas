@@ -4,7 +4,7 @@
 Plugin Name: WPU Comment Metas
 Plugin URI: https://github.com/WordPressUtilities/wpucommentmetas
 Description: Simple admin for comments metas
-Version: 0.5.0
+Version: 0.6.0
 Author: Darklg
 Author URI: https://darklg.me/
 License: MIT License
@@ -17,8 +17,6 @@ class WPUCommentMetas {
     private $fields = array();
     public function __construct() {
         add_filter('plugins_loaded', array(&$this, 'plugins_loaded'));
-        add_filter('manage_edit-comments_columns', array(&$this, 'add_comments_columns'));
-        add_action('manage_comments_custom_column', array(&$this, 'add_comment_columns_content'), 10, 2);
     }
 
     public function plugins_loaded() {
@@ -27,6 +25,8 @@ class WPUCommentMetas {
         $this->display_fields_front();
         $this->display_fields_admin();
         $this->save_fields_form();
+        $this->display_admin_columns();
+        add_action('admin_init', array(&$this, 'admin_edit_values'));
     }
 
     /* ----------------------------------------------------------
@@ -157,7 +157,7 @@ class WPUCommentMetas {
                 continue;
             }
             $meta_value = get_comment_meta($comment->comment_ID, $id, 1);
-            $extra_comment_text .= '<strong>' . $field['label'] . ' : </strong> ' . $meta_value . "\n";
+            $extra_comment_text .= '<strong>' . $field['label'] . ' : </strong> ' . strip_tags($meta_value) . "\n";
         }
         $extra_comment_text = trim($extra_comment_text);
         if (!empty($extra_comment_text)) {
@@ -167,10 +167,15 @@ class WPUCommentMetas {
     }
 
     /* ----------------------------------------------------------
-      Admin
+      Display in columns
     ---------------------------------------------------------- */
 
-    function add_comments_columns($columns) {
+    public function display_admin_columns() {
+        add_filter('manage_edit-comments_columns', array(&$this, 'add_comments_columns'));
+        add_action('manage_comments_custom_column', array(&$this, 'add_comment_columns_content'), 10, 2);
+    }
+
+    public function add_comments_columns($columns) {
         $new_columns = array();
         foreach ($this->fields as $id => $field) {
             if (!$field['admin_column']) {
@@ -191,8 +196,45 @@ class WPUCommentMetas {
             if (!$field['admin_column']) {
                 continue;
             }
-            echo get_comment_meta($comment_ID, $id, 1);
+            echo strip_tags(get_comment_meta($comment_ID, $id, 1));
         }
+    }
+
+    /* ----------------------------------------------------------
+      Edit values
+    ---------------------------------------------------------- */
+
+    public function admin_edit_values() {
+        add_meta_box('wpucommentmetas__editcomments', __('Extra', 'wpucommentmetas'), array(&$this, 'edit_metabox'), 'comment', 'normal');
+        add_filter('edit_comment', array(&$this, 'save_comment_data'));
+    }
+
+    public function edit_metabox($comment) {
+        if (empty($this->fields)) {
+            return;
+        }
+        $html_table = '';
+        foreach ($this->fields as $id => $field) {
+            $field_id = 'wpucommentmetas__field__' . $id;
+            $value = get_comment_meta($comment->comment_ID, $id, 1);
+            $html_table .= '<tr valign="top"><td class="first"><label for="' . esc_attr($field_id) . '">' . $field['label'] . '</label></td><td>';
+            $html_table .= '<input type="text" id="' . $field_id . '" name="' . $field_id . '" value="' . esc_attr($value) . '" />';
+            $html_table .= '</td></tr>';
+        }
+        echo '<table class="form-table editcomment comment_xtra"><tbody>' . $html_table . '</tbody></table>';
+    }
+
+    function save_comment_data($comment_ID) {
+
+        foreach ($this->fields as $id => $field) {
+            $field_id = 'wpucommentmetas__field__' . $id;
+            if (!isset($_POST[$field_id])) {
+                continue;
+            }
+            $post_value = $this->check_field_value($id, $field, $_POST[$field_id]);
+            update_comment_meta($comment_ID, $id, $post_value);
+        }
+
     }
 
     /* ----------------------------------------------------------
@@ -223,9 +265,22 @@ class WPUCommentMetas {
             if (!isset($_POST['wpucommentmetas__' . $id])) {
                 continue;
             }
-            $post_value = esc_html($_POST['wpucommentmetas__' . $id]);
+            $post_value = $this->check_field_value($id, $field, $_POST['wpucommentmetas__' . $id]);
             add_comment_meta($comment_id, $id, $post_value);
         }
+    }
+
+    /* ----------------------------------------------------------
+      Filter value content
+    ---------------------------------------------------------- */
+
+    public function check_field_value($field_id, $field, $value) {
+        $return = false;
+        switch ($field['type']) {
+        default:
+            $return = sanitize_text_field($value);
+        }
+        return $return;
     }
 
 }
