@@ -4,7 +4,7 @@
 Plugin Name: WPU Comment Metas
 Plugin URI: https://github.com/WordPressUtilities/wpucommentmetas
 Description: Simple admin for comments metas
-Version: 0.6.0
+Version: 0.6.1
 Author: Darklg
 Author URI: https://darklg.me/
 License: MIT License
@@ -156,14 +156,19 @@ class WPUCommentMetas {
             if (!$field['admin_list_visible'] && $is_edit_comment) {
                 continue;
             }
-            $meta_value = get_comment_meta($comment->comment_ID, $id, 1);
-            $extra_comment_text .= '<strong>' . $field['label'] . ' : </strong> ' . strip_tags($meta_value) . "\n";
+            $extra_comment_text .= '<strong>' . $field['label'] . ' : </strong> ' . $this->get_admin_comment_meta($comment->comment_ID, $id) . "\n";
         }
         $extra_comment_text = trim($extra_comment_text);
         if (!empty($extra_comment_text)) {
             $comment_text .= '<hr />' . wpautop($extra_comment_text);
         }
         return $comment_text;
+    }
+
+    function get_admin_comment_meta($comment_id, $meta_key) {
+        $meta_value = get_comment_meta($comment_id, $meta_key, 1);
+        $meta_value = apply_filters('wpucommentmetas__get_admin_comment_meta', strip_tags($meta_value), $meta_value, $meta_key, $comment_id);
+        return $meta_value;
     }
 
     /* ----------------------------------------------------------
@@ -196,7 +201,7 @@ class WPUCommentMetas {
             if (!$field['admin_column']) {
                 continue;
             }
-            echo strip_tags(get_comment_meta($comment_ID, $id, 1));
+            echo $this->get_admin_comment_meta($comment_ID, $id);
         }
     }
 
