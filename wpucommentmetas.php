@@ -4,7 +4,7 @@
 Plugin Name: WPU Comment Metas
 Plugin URI: https://github.com/WordPressUtilities/wpucommentmetas
 Description: Simple admin for comments metas
-Version: 0.6.1
+Version: 0.7.0
 Author: Darklg
 Author URI: https://darklg.me/
 License: MIT License
@@ -14,6 +14,7 @@ License URI: https://opensource.org/licenses/MIT
 defined('ABSPATH') or die(':(');
 
 class WPUCommentMetas {
+    private $plugin_version = '0.7.0';
     private $fields = array();
     public function __construct() {
         add_filter('plugins_loaded', array(&$this, 'plugins_loaded'));
@@ -26,7 +27,16 @@ class WPUCommentMetas {
         $this->display_fields_admin();
         $this->save_fields_form();
         $this->display_admin_columns();
+        add_action('admin_enqueue_scripts', array(&$this, 'admin_style'));
         add_action('admin_init', array(&$this, 'admin_edit_values'));
+    }
+
+    /* ----------------------------------------------------------
+      Admin style
+    ---------------------------------------------------------- */
+
+    function admin_style() {
+        wp_enqueue_style('admin-styles', plugins_url('assets/admin.css', __FILE__), array(), $this->plugin_version, 'all');
     }
 
     /* ----------------------------------------------------------
@@ -41,6 +51,9 @@ class WPUCommentMetas {
             }
             if (!isset($field['label'])) {
                 $this->fields[$id]['label'] = ucfirst($id);
+            }
+            if (!isset($field['admin_label'])) {
+                $this->fields[$id]['admin_label'] = $this->fields[$id]['label'];
             }
             if (!isset($field['type'])) {
                 $this->fields[$id]['type'] = 'text';
@@ -156,7 +169,7 @@ class WPUCommentMetas {
             if (!$field['admin_list_visible'] && $is_edit_comment) {
                 continue;
             }
-            $extra_comment_text .= '<strong>' . $field['label'] . ' : </strong> ' . $this->get_admin_comment_meta($comment->comment_ID, $id) . "\n";
+            $extra_comment_text .= '<strong>' . $field['admin_label'] . ' : </strong> ' . $this->get_admin_comment_meta($comment->comment_ID, $id) . "\n";
         }
         $extra_comment_text = trim($extra_comment_text);
         if (!empty($extra_comment_text)) {
@@ -167,8 +180,17 @@ class WPUCommentMetas {
 
     function get_admin_comment_meta($comment_id, $meta_key) {
         $meta_value = get_comment_meta($comment_id, $meta_key, 1);
-        $meta_value = apply_filters('wpucommentmetas__get_admin_comment_meta', strip_tags($meta_value), $meta_value, $meta_key, $comment_id);
-        return $meta_value;
+        $display_value = $meta_value;
+        switch ($this->fields[$meta_key]['type']) {
+        case 'checkbox':
+            $display_value = '<span class="wpucommentmetas__checkbox">' . ($display_value == '1' ? '<span class="dashicons dashicons-yes"></span>' : '') . '</span>';
+            break;
+        default:
+            $display_value = strip_tags($meta_value);
+
+        }
+        $display_value = apply_filters('wpucommentmetas__get_admin_comment_meta', $display_value, $meta_value, $meta_key, $comment_id);
+        return $display_value;
     }
 
     /* ----------------------------------------------------------
@@ -186,7 +208,7 @@ class WPUCommentMetas {
             if (!$field['admin_column']) {
                 continue;
             }
-            $new_columns['wpu__' . $id] = $field['label'];
+            $new_columns['wpu__' . $id] = $field['admin_label'];
         }
         $columns = array_slice($columns, 0, 3, true) + $new_columns + array_slice($columns, 3, NULL, true);
         return $columns;
@@ -222,7 +244,7 @@ class WPUCommentMetas {
         foreach ($this->fields as $id => $field) {
             $field_id = 'wpucommentmetas__field__' . $id;
             $value = get_comment_meta($comment->comment_ID, $id, 1);
-            $html_table .= '<tr valign="top"><td class="first"><label for="' . esc_attr($field_id) . '">' . $field['label'] . '</label></td><td>';
+            $html_table .= '<tr valign="top"><td class="first"><label for="' . esc_attr($field_id) . '">' . $field['admin_label'] . '</label></td><td>';
             $html_table .= '<input type="text" id="' . $field_id . '" name="' . $field_id . '" value="' . esc_attr($value) . '" />';
             $html_table .= '</td></tr>';
         }
@@ -236,7 +258,7 @@ class WPUCommentMetas {
             if (!isset($_POST[$field_id])) {
                 continue;
             }
-            $post_value = $this->check_field_value($id, $field, $_POST[$field_id]);
+            $post_value = $this->prepare_field_value($id, $field, $_POST[$field_id]);
             update_comment_meta($comment_ID, $id, $post_value);
         }
 
@@ -270,7 +292,7 @@ class WPUCommentMetas {
             if (!isset($_POST['wpucommentmetas__' . $id])) {
                 continue;
             }
-            $post_value = $this->check_field_value($id, $field, $_POST['wpucommentmetas__' . $id]);
+            $post_value = $this->prepare_field_value($id, $field, $_POST['wpucommentmetas__' . $id]);
             add_comment_meta($comment_id, $id, $post_value);
         }
     }
@@ -279,9 +301,12 @@ class WPUCommentMetas {
       Filter value content
     ---------------------------------------------------------- */
 
-    public function check_field_value($field_id, $field, $value) {
+    public function prepare_field_value($field_id, $field, $value) {
         $return = false;
         switch ($field['type']) {
+        case 'checkbox':
+            $return = $return == 1 ? $return : 0;
+            break;
         default:
             $return = sanitize_text_field($value);
         }
